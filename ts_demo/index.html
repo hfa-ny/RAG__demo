@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CUNY Secure AI Walled Garden</title>
+  </head>
+  <body>
+    <main>
+      <h1>🏛️ Secure Campus AI</h1>
+      <section id="chat" aria-label="Chat" aria-live="polite"></section>
+      <p id="status" role="status" hidden>Querying local vector database...</p>
+      <p id="error" role="alert" hidden></p>
+    </main>
+    <footer>
+      <form id="question-form">
+        <input id="question" name="question" aria-label="Ask a question about university policies" placeholder="Ask a question about university policies..." maxlength="10000" autocomplete="off" required />
+        <button type="submit" aria-label="Send question" title="Send question">↑</button>
+      </form>
+    </footer>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,9 @@
+# Preserve the existing demo Chroma service after moving this file.
+name: demo
+services:
+  chroma:
+    image: chromadb/chroma:1.5.5
+    ports:
+      - "127.0.0.1:8000:8000"
+    environment:
+      ANONYMIZED_TELEMETRY: "False"

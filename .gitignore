@@ -7,3 +7,6 @@ __pycache__/
 chroma/
 *.sqlite3
 .DS_Store
+node_modules/
+dist/
+.npm-cache/

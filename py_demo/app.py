@@ -6,7 +6,9 @@ from langchain_chroma import Chroma
 from langchain_classic.chains import create_retrieval_chain
 from langchain_classic.chains.combine_documents import create_stuff_documents_chain
 from langchain_core.prompts import ChatPromptTemplate
-import os
+from pathlib import Path
+
+DOCS_DIR = Path(__file__).resolve().parent.parent / "demo_docs"
 
 st.set_page_config(page_title="CUNY Secure AI Walled Garden")
 st.title("🏛️ Secure Campus AI")
@@ -18,13 +20,14 @@ embeddings = OllamaEmbeddings(model="nomic-embed-text")
 @st.cache_resource
 def build_vector_store():
     # Ensure the demo directory exists
-    if not os.path.exists("demo_docs"):
-        os.makedirs("demo_docs")
-        with open("demo_docs/sample_policy.txt", "w") as f:
+    if not DOCS_DIR.exists():
+        DOCS_DIR.mkdir(parents=True)
+        with (DOCS_DIR / "sample_policy.txt").open("w", encoding="utf-8") as f:
             f.write("CUNY Demo Policy: All student data must remain on secure, localized servers. Public LLM APIs are strictly prohibited for processing FERPA-protected information.")
             
     # Load and chunk documents
-    loader = DirectoryLoader("demo_docs", glob="**/*.txt", loader_cls=TextLoader)
+    loader = DirectoryLoader(str(DOCS_DIR), glob="**/*.txt", loader_cls=TextLoader,
+                             loader_kwargs={"encoding": "utf-8"})
     docs = loader.load()
     
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
