@@ -373,6 +373,55 @@ TypeScript's `GET /api/health` reports that the web server is responding. It doe
 **not** check Chroma, Ollama, installed models, or the document index. A real
 question exercises the full path.
 
+
+## 🏗️ Architecture & Tech Stack
+
+This prototype is built using a minimalist, offline-capable stack designed for rapid deployment and robust live demonstration.
+
+*   **UI & Server:** [Streamlit](https://streamlit.io/)
+*   **Inference Engine:** [Ollama](https://ollama.com/) (Local LLM runner)
+*   **Vector Database:** [ChromaDB](https://www.trychroma.com/) (In-memory/local storage)
+*   **Orchestration:** [LangChain](https://www.langchain.com/)
+
+### Data Flow Diagram
+
+```mermaid
+graph TD
+    classDef localApp fill:#e1f5fe,stroke:#0288d1,stroke-width:2px,color:#000
+    classDef secureDB fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px,color:#000
+    classDef localModel fill:#fff3e0,stroke:#e65100,stroke-width:2px,color:#000
+
+    subgraph Phase 1: Ingestion & Indexing
+        A[Local University Documents] -->|LangChain Loader| B(Text Splitter)
+        B -->|Document Chunks| C[Ollama Embeddings<br>nomic-embed-text]:::localModel
+        C -->|Vector Data| D[(Chroma Vector DB<br>Local Hosted)]:::secureDB
+    end
+
+    subgraph Phase 2: Secure Retrieval & Generation
+        E[User Query] -->|Streamlit UI| F[Ollama Embeddings]:::localModel
+        F -->|Query Vector| D
+        D -.->|Similarity Search:<br>Returns Top-K Docs| G{LangChain<br>Prompt Builder}
+        E -->|Raw Question| G
+        G -->|Context + Question| H[Ollama LLM<br>Llama 3.2]:::localModel
+        H -->|Generated Response| I[Streamlit Chat UI]:::localApp
+    end
+
+    style Phase 1 stroke:#b71c1c,stroke-width:2px,stroke-dasharray: 5 5
+    style Phase 2 stroke:#b71c1c,stroke-width:2px,stroke-dasharray: 5 5
+```
+
+    💻 Hardware Requirements & Model Selection
+This demo uses highly optimized models that run efficiently on consumer hardware (Apple Silicon M-series or Windows machines with mid-range dedicated GPUs).
+
+LLM (Text Generation): llama3.2 (1B or 3B)
+
+Extremely lightweight and fast. The 1B parameter model requires ~2GB of memory; the 3B model requires ~6GB. 16GB of total system RAM is recommended.
+
+Embeddings: nomic-embed-text
+
+A specialized, efficient embedding model with an 8,192-token context window. Processes chunks rapidly on standard hardware without external API dependencies. (Requires Ollama v0.1.26+).
+
+
 ## Scope and limitations
 
 This is a local RAG demonstration with a small text corpus. It has no user login,
