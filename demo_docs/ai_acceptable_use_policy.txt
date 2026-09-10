@@ -1,0 +1,18 @@
+Policy Name: Acceptable Use of Generative AI
+Effective Date: September 1, 2026
+Department: Office of Information Technology (OIT)
+
+1. Overview
+The University encourages the ethical exploration of Generative AI. However, the use of public AI tools (such as ChatGPT, Claude, or public Copilot endpoints) presents significant data security risks.
+
+2. Data Restrictions
+Faculty, staff, and student workers are strictly prohibited from entering Tier 1 (Highly Restricted) or Tier 2 (Confidential) data into any public AI prompt. This includes, but is not limited to:
+- Student grades, ID numbers, or financial aid information (FERPA-protected).
+- Unpublished institutional research data.
+- Employee performance reviews or HR records.
+
+3. Grading and Assessment
+Instructors may not use public AI platforms to grade student essays or exams. Any automated grading must be conducted using the University's approved, on-premise "Secure Campus AI" environment. 
+
+4. Syllabus Requirement
+All faculty must include a clear AI usage statement in their syllabi by the second week of classes, explicitly stating whether AI tools are permitted for coursework.

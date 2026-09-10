@@ -1,0 +1,20 @@
+Policy Name: Institutional Data Classification Guidelines
+Effective Date: January 15, 2025
+Department: Data Governance Board
+
+The University classifies all digital data into three tiers to dictate how it must be stored and processed.
+
+Tier 1: Highly Restricted
+Definition: Data protected by state or federal law (e.g., FERPA, HIPAA, PCI-DSS).
+Examples: Social Security Numbers, student transcripts, medical records, credit card numbers.
+Storage: Must be stored exclusively on local University servers or the strictly configured AWS GovCloud environment. 
+
+Tier 2: Confidential
+Definition: Internal data not meant for public distribution, but not strictly bound by federal privacy laws.
+Examples: Internal departmental budgets, unreleased press statements, building security blueprints.
+Storage: May be stored in the University's enterprise OneDrive or internal SharePoint sites.
+
+Tier 3: Public
+Definition: Information explicitly created for public consumption.
+Examples: Course catalogs, published faculty directories, campus maps.
+Storage: Can be hosted on public web servers or shared freely.

@@ -1,0 +1,18 @@
+Policy Name: Faculty Hardware Procurement and Refresh Cycle
+Effective Date: May 10, 2026
+Department: Academic Affairs & Purchasing
+
+1. Standard Equipment Allocation
+All full-time tenure-track faculty and full-time lecturers are eligible for a primary computing device upon hire. The maximum allocation for a standard laptop or desktop is $1,850. 
+
+2. Refresh Cycle
+Primary computing devices are eligible for replacement every four (4) years. Faculty must submit a hardware refresh request to the IT Helpdesk no later than April 1st of their eligibility year.
+
+3. Specialized Hardware
+Faculty in the Computer Science, Engineering, and Media Arts departments may request a "High-Performance Workstation" allocation up to $3,200. This requires a signed justification form from the Department Chair.
+
+4. Peripheral Equipment
+A secondary budget of $300 per faculty member is available every two years for peripherals, including external monitors, keyboards, mice, and approved webcams. 
+
+5. Return of Old Equipment
+Upon receiving a new device during a refresh cycle, the faculty member must return their old device to the IT Asset Management office within 14 business days.
