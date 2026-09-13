@@ -35,7 +35,11 @@ export function createRag() {
         await collection.add({
           ids: batch.map((_, index) => String(offset + index)),
           documents: texts,
-          metadatas: batch.map((doc) => ({ source: String(doc.metadata.source) })),
+          metadatas: batch.map((doc) => ({
+            source: String(doc.metadata.source),
+            format: String(doc.metadata.format || ""),
+            section: String(doc.metadata.section || ""),
+          })),
           embeddings: await embeddings.embedDocuments(texts),
         });
       }
@@ -60,6 +64,8 @@ export function createRag() {
       const context = (result.documents[0] || []).map((text, i) => ({
         pageContent: text || "",
         source: String(result.metadatas[0]?.[i]?.source || ""),
+        format: String(result.metadatas[0]?.[i]?.format || ""),
+        section: String(result.metadatas[0]?.[i]?.section || ""),
       }));
       const response = await llm.invoke([
         ["system", SYSTEM_PROMPT + context.map((doc) => doc.pageContent).join("\n\n")],

@@ -16,7 +16,7 @@ export function createApp(ask: (question: string) => Promise<ChatResponse>) {
     try {
       res.json(await ask(question.trim()));
     } catch {
-      res.status(503).json({ error: "Unable to query local policies. Check that Ollama and Chroma are running, llama3.2 and nomic-embed-text are installed, and demo_docs contains readable .txt files. Then try again." });
+      res.status(503).json({ error: "Unable to query local policies. Check that Ollama and Chroma are running, llama3.2 and nomic-embed-text are installed, and demo_docs contains readable supported files. Then try again." });
     }
   });
   app.use("/api", (_req, res) => { res.status(404).json({ error: "Unknown API endpoint." }); });
