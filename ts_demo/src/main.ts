@@ -63,7 +63,14 @@ form.addEventListener("submit", async (event) => {
     for (const doc of data.context) {
       const source = document.createElement("div");
       source.className = "source";
-      source.textContent = doc.pageContent;
+      const sourceMeta = document.createElement("div");
+      sourceMeta.className = "source-meta";
+      sourceMeta.textContent = [doc.source, doc.section].filter(Boolean).join(" - ");
+      if (sourceMeta.textContent) source.append(sourceMeta);
+      const sourceText = document.createElement("div");
+      sourceText.className = "source-text";
+      sourceText.textContent = doc.pageContent;
+      source.append(sourceText);
       sources.append(source);
     }
     body.append(sources);

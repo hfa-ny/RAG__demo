@@ -1,0 +1,39 @@
+name: secure-campus-ai
+services:
+  python:
+    build:
+      context: .
+      dockerfile: py_demo/Dockerfile
+    ports:
+      - "127.0.0.1:8501:8501"
+    environment:
+      OLLAMA_BASE_URL: "http://host.docker.internal:11434"
+    volumes:
+      - ./demo_docs:/app/demo_docs:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  typescript:
+    build:
+      context: .
+      dockerfile: ts_demo/Dockerfile
+    ports:
+      - "127.0.0.1:8502:8502"
+    environment:
+      HOST: "0.0.0.0"
+      PORT: "8502"
+      OLLAMA_BASE_URL: "http://host.docker.internal:11434"
+      CHROMA_URL: "http://chroma:8000"
+    volumes:
+      - ./demo_docs:/app/demo_docs:ro
+    depends_on:
+      - chroma
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  chroma:
+    image: chromadb/chroma:1.5.5
+    ports:
+      - "127.0.0.1:8000:8000"
+    environment:
+      ANONYMIZED_TELEMETRY: "False"

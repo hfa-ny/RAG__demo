@@ -1,5 +1,5 @@
 import streamlit as st
-from langchain_community.document_loaders import DirectoryLoader, TextLoader
+import os
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_ollama import OllamaEmbeddings, ChatOllama
 from langchain_chroma import Chroma
@@ -7,6 +7,7 @@ from langchain_classic.chains import create_retrieval_chain
 from langchain_classic.chains.combine_documents import create_stuff_documents_chain
 from langchain_core.prompts import ChatPromptTemplate
 from pathlib import Path
+from document_loader import load_supported_documents
 
 DOCS_DIR = Path(__file__).resolve().parent.parent / "demo_docs"
 
@@ -14,21 +15,14 @@ st.set_page_config(page_title="CUNY Secure AI Walled Garden")
 st.title("🏛️ Secure Campus AI")
 
 # 1. Initialize Local Models
-llm = ChatOllama(model="llama3.2")
-embeddings = OllamaEmbeddings(model="nomic-embed-text")
+ollama_base_url = os.environ.get("OLLAMA_BASE_URL")
+llm = ChatOllama(model="llama3.2", base_url=ollama_base_url) if ollama_base_url else ChatOllama(model="llama3.2")
+embeddings = OllamaEmbeddings(model="nomic-embed-text", base_url=ollama_base_url) if ollama_base_url else OllamaEmbeddings(model="nomic-embed-text")
 
 @st.cache_resource
 def build_vector_store():
-    # Ensure the demo directory exists
-    if not DOCS_DIR.exists():
-        DOCS_DIR.mkdir(parents=True)
-        with (DOCS_DIR / "sample_policy.txt").open("w", encoding="utf-8") as f:
-            f.write("CUNY Demo Policy: All student data must remain on secure, localized servers. Public LLM APIs are strictly prohibited for processing FERPA-protected information.")
-            
     # Load and chunk documents
-    loader = DirectoryLoader(str(DOCS_DIR), glob="**/*.txt", loader_cls=TextLoader,
-                             loader_kwargs={"encoding": "utf-8"})
-    docs = loader.load()
+    docs = load_supported_documents(DOCS_DIR)
     
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
     splits = text_splitter.split_documents(docs)
@@ -36,7 +30,11 @@ def build_vector_store():
     # Build and return the local Chroma database
     return Chroma.from_documents(documents=splits, embedding=embeddings)
 
-vectorstore = build_vector_store()
+try:
+    vectorstore = build_vector_store()
+except ValueError as error:
+    st.error(str(error))
+    st.stop()
 retriever = vectorstore.as_retriever()
 
 # 2. Configure the RAG Chain
@@ -68,4 +66,10 @@ if query:
             # Prove the walled garden concept by exposing the raw retrieved data
             with st.expander("View Retrieved Source Documents"):
                 for doc in response["context"]:
+                    source = doc.metadata.get("source", "unknown source")
+                    section = doc.metadata.get("section")
+                    label = f"{source}"
+                    if section:
+                        label = f"{label} - {section}"
+                    st.caption(label)
                     st.info(doc.page_content)

@@ -19,6 +19,8 @@ pre { overflow-x: auto; padding: 12px; background: #f0f2f6; border-radius: 6px; 
 details { border: 1px solid #d6d6d8; border-radius: 8px; margin-top: 16px; }
 summary { padding: 12px 16px; cursor: pointer; font-size: 14px; }
 .source { background: #e8f4ff; color: #174c77; padding: 16px; margin: 0 12px 12px; border-radius: 6px; white-space: pre-wrap; }
+.source-meta { color: #315b7a; font-size: 12px; font-weight: 700; margin-bottom: 8px; white-space: normal; }
+.source-text { white-space: pre-wrap; }
 footer { position: fixed; bottom: 0; left: 0; right: 0; background: #fff; padding: 20px 16px 32px; }
 form { display: flex; max-width: 704px; margin: auto; background: #f0f2f6; border: 1px solid transparent; border-radius: 12px; }
 form:focus-within { border-color: #ff4b4b; }

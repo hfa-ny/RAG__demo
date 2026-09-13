@@ -40,7 +40,7 @@ to the model.
 | --- | --- | --- |
 | UI | Streamlit chat components | HTML/CSS and TypeScript, bundled with Vite |
 | Application server | Streamlit, port `8501` | Node / Express, port `8502` |
-| Document loading | LangChain `DirectoryLoader` and `TextLoader` | Recursive filesystem loader |
+| Document loading | Recursive local loader for supported formats | Recursive local loader for supported formats |
 | Chunking | LangChain recursive character splitter | LangChain recursive character splitter |
 | Embeddings | Ollama `nomic-embed-text` | Ollama `nomic-embed-text` |
 | Vector storage | Embedded Chroma in the Python process | Chroma service, default port `8000` |
@@ -81,19 +81,22 @@ resources, but does not share their indexes.
 ```mermaid
 %%{init: {"themeVariables": {"fontSize": "12px"}, "flowchart": {"nodeSpacing": 16, "rankSpacing": 24}}}%%
 flowchart LR
-    D["Policy .txt files"] --> S["Split text<br/>500 / 50 characters"]
+    D["Policy files"] --> X["Extract embedded text"]
+    X --> S["Split text<br/>500 / 50 characters"]
     S --> E["Ollama embeddings"]
     E --> V[("Chroma index")]
     S -->|"text + source metadata"| V
 ```
 
-1. Read UTF-8 `.txt` files recursively from `demo_docs/`.
-2. Split documents into chunks of up to **500 characters**, with **50 characters
+1. Read supported local document files recursively from `demo_docs/`.
+2. Extract embedded text and preserve source metadata such as relative file path,
+   format, page, sheet, slide, or row range when available.
+3. Split documents into chunks of up to **500 characters**, with **50 characters
    of overlap** configured to preserve context across boundaries. These are
    character settings, not token counts; natural text boundaries affect the
    actual chunk lengths and overlap.
-3. Embed the chunks with `nomic-embed-text` through local Ollama.
-4. Store vectors, original chunk text, and source metadata in Chroma.
+4. Embed the chunks with `nomic-embed-text` through local Ollama.
+5. Store vectors, original chunk text, and source metadata in Chroma.
 
 Python builds its index when the Streamlit script first runs and caches the
 vector store. TypeScript builds on the first question and shares that initialization
@@ -135,9 +138,12 @@ relevant passage correctly.
 
 ```text
 demo/
+|-- compose.yaml                  Optional Docker Compose for both apps + Chroma
 |-- demo_docs/                   Shared policy corpus
 |-- py_demo/
 |   |-- app.py                   Streamlit UI and RAG chain
+|   |-- document_loader.py       Multi-format local text extraction
+|   |-- Dockerfile               Python app container
 |   |-- requirements.txt        Python dependencies
 |   |-- venv/                   Local environment; ignored by Git
 |   `-- readme.md                Python setup details
@@ -151,7 +157,8 @@ demo/
 |   |-- package-lock.json       Locked npm dependency versions
 |   |-- tsconfig*.json          TypeScript configuration
 |   |-- vite.config.ts          Browser build configuration
-|   |-- compose.yaml            Local Chroma service
+|   |-- compose.yaml            Local Chroma-only service for direct TS runs
+|   |-- Dockerfile              TypeScript app container
 |   |-- .env.example            Configuration template
 |   `-- readme.md               TypeScript setup details
 `-- readme.md                   Project overview and demonstration guide
@@ -168,9 +175,10 @@ build output, and `.env` files are ignored by Git.
 
 | Running | Requirements |
 | --- | --- |
-| Either app | Ollama running locally; both models downloaded |
+| Either app | Ollama running on the host; both models downloaded |
 | Python | Python 3.10+ and a virtual environment |
 | TypeScript | Node.js 22.12+ and npm; Docker Desktop for the supplied Chroma service, or an existing compatible Chroma server |
+| Docker Compose | Docker Desktop or compatible Docker Engine; Ollama still runs on the host |
 
 From a terminal, download and verify the models once:
 
@@ -190,7 +198,34 @@ questions on the actual machine: the first request also pays model-loading and,
 for TypeScript, indexing costs. Avoid simultaneous requests from both apps when
 comparing their response times.
 
-### Python
+### Docker Compose with host Ollama
+
+The optional root Compose file containerizes the Python app, TypeScript app, and
+Chroma while leaving Ollama on the host machine. This avoids baking large model
+files into images and keeps local GPU/accelerator setup with Ollama.
+
+Start Ollama on the host first, then from the repository root run:
+
+```bash
+docker compose up --build
+```
+
+Open **http://localhost:8501** for Python and **http://localhost:8502** for
+TypeScript. The Compose file mounts `./demo_docs` read-only into both app
+containers, so document edits are picked up after restarting the relevant app
+container. Stop everything with **Ctrl+C**, or run:
+
+```bash
+docker compose down
+```
+
+The containers reach host Ollama through `http://host.docker.internal:11434`.
+This works on Docker Desktop and is mapped through `host-gateway` for Linux
+Docker engines that support it. If your Docker setup cannot resolve that host
+name, set `OLLAMA_BASE_URL` in `compose.yaml` to an address reachable from
+containers.
+
+### Python direct run
 
 From the repository root, in Windows PowerShell:
 
@@ -214,7 +249,7 @@ Open **http://localhost:8501**. Chroma runs inside the Python process; no separa
 database command is needed. See [the Python README](py_demo/readme.md) for
 launching from the repository root.
 
-### TypeScript
+### TypeScript direct run
 
 Start Docker Desktop if using the supplied Chroma container. From the repository
 root, in a separate terminal:
@@ -250,14 +285,29 @@ refer to these files, not an independently verified statement of university poli
 | [Data classification guidelines](demo_docs/data_classification_guidelines.txt) | Highly Restricted, Confidential, and Public data; storage rules |
 | [Faculty hardware procurement](demo_docs/faculty_hardware_procurement.txt) | Equipment budgets, refresh deadlines, departmental exceptions, peripherals |
 
-To add knowledge, place UTF-8 `.txt` files in `demo_docs/` or its subfolders, then
-restart each app that should pick up the changes. Both apps resolve this directory
-relative to their application files, so the shell's working directory does not
-change the selected corpus. There is no upload UI or automatic document watcher.
+To add knowledge, place supported local document files in `demo_docs/` or its
+subfolders, then restart each app that should pick up the changes. Both apps
+resolve this directory relative to their application files, so the shell's working
+directory does not change the selected corpus. There is no upload UI or automatic
+document watcher.
+
+| Format | Support level |
+| --- | --- |
+| `.txt`, `.md` | UTF-8 text is indexed directly. |
+| `.html`, `.htm` | Visible page text is extracted; scripts and styles are ignored. |
+| `.pdf` | Embedded text is extracted page by page when available. Scanned/image-only PDFs need OCR and are not supported in this demo. |
+| `.docx` | Paragraph and table text is extracted. |
+| `.csv` | Rows are converted to readable text with row-range metadata. |
+| `.xlsx` | Sheet rows are converted to readable text with sheet and row-range metadata. |
+| `.pptx` | Slide text is extracted with slide-number metadata. |
+
+The apps index extracted text, not the original binary files. OCR, audio/video
+transcription, database ingestion, SharePoint/Drive connectors, and permission-aware
+sync are future extensions rather than implemented demo features.
 
 If `demo_docs/` is missing, either implementation creates a small fallback policy.
-An existing empty directory does not get populated automatically; add a nonempty
-text file before querying it.
+An existing empty directory does not get populated automatically; add a readable
+supported document before querying it.
 
 | Lifecycle | Python | TypeScript |
 | --- | --- | --- |
@@ -281,14 +331,17 @@ the values; shell environment variables take precedence. Restart after changes.
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `PORT` | `8502` | Node web server port |
+| `HOST` | `127.0.0.1` | Node bind address; use `0.0.0.0` inside a container |
 | `OLLAMA_BASE_URL` | `http://127.0.0.1:11434` | Embedding and chat service |
 | `CHROMA_URL` | `http://127.0.0.1:8000` | Chroma service |
 | `CHAT_MODEL` | `llama3.2` | Answer-generation model |
 | `EMBEDDING_MODEL` | `nomic-embed-text` | Document and question embeddings |
 
-The Python version sets model names in [py_demo/app.py](py_demo/app.py) and uses
-the Ollama integration's local default. It does not read the TypeScript `.env`.
-Its web port can be overridden with Streamlit's `--server.port` launch argument.
+The Python version sets model names in [py_demo/app.py](py_demo/app.py). It uses
+the Ollama integration's local default unless `OLLAMA_BASE_URL` is set, which the
+Docker Compose workflow uses to reach host Ollama. It does not read the TypeScript
+`.env`. Its web port can be overridden with Streamlit's `--server.port` launch
+argument.
 
 For a fair comparison, use the same models and corpus in both apps. Chunk size,
 overlap, and retrieval count are defined in code, not the TypeScript `.env`.
@@ -362,8 +415,8 @@ demo questions to assess retrieval and answers.
 | --- | --- |
 | Ollama connection failure | Confirm Ollama is running and reachable at the configured local URL. |
 | Model not found | Run `ollama list`; pull both configured model names if missing. |
-| TypeScript cannot query policies | From `ts_demo/`, run `docker compose ps` and `docker compose logs --tail 50 chroma`; also check Ollama and readable `.txt` files. |
-| Empty corpus or indexing error | Check `demo_docs/` exists, contains nonempty UTF-8 `.txt` files, and is readable. |
+| TypeScript cannot query policies | From `ts_demo/`, run `docker compose ps` and `docker compose logs --tail 50 chroma`; also check Ollama and readable supported files. |
+| Empty corpus or indexing error | Check `demo_docs/` exists, contains at least one readable supported file, and is readable. |
 | Policy edits do not appear | Restart the relevant app; indexes are cached and not automatically refreshed. |
 | First question is slow | Allow indexing and model loading to finish; compare later requests separately. |
 | Port already in use | Stop the other instance or change the affected app's port. Defaults are 8501 and 8502. |

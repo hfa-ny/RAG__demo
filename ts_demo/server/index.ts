@@ -24,7 +24,8 @@ if (production) {
   app.use(vite.middlewares);
 }
 const port = Number(process.env.PORT || 8502);
-const server = app.listen(port, "127.0.0.1", () => {
+const host = process.env.HOST || "127.0.0.1";
+const server = app.listen(port, host, () => {
   console.log(`Secure Campus AI: http://localhost:${port}`);
 });
 for (const signal of ["SIGINT", "SIGTERM"] as const) {

@@ -1,0 +1,14 @@
+.git
+.agents
+.codex
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+**/venv
+**/node_modules
+**/dist
+**/.env
+**/.streamlit
+chroma
+*.sqlite3
+.DS_Store
