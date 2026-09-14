@@ -12,8 +12,9 @@ from document_loader import load_supported_documents
 DOCS_DIR = Path(__file__).resolve().parent.parent / "demo_docs"
 
 st.set_page_config(page_title="CUNY Secure AI Walled Garden")
-st.title("🏛️ Secure Campus AI")
 
+st.title("🏛️ CUNY IT Conference 2026")
+st.title("     Local AI RAG  Demo")
 # 1. Initialize Local Models
 ollama_base_url = os.environ.get("OLLAMA_BASE_URL")
 llm = ChatOllama(model="llama3.2", base_url=ollama_base_url) if ollama_base_url else ChatOllama(model="llama3.2")
