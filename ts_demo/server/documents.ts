@@ -5,6 +5,9 @@ import { Document } from "@langchain/core/documents";
 import { RecursiveCharacterTextSplitter } from "@langchain/textsplitters";
 
 export const supportedExtensions = new Set([".txt", ".md", ".html", ".htm", ".pdf", ".docx", ".csv", ".xlsx", ".pptx"]);
+
+// Marks a failure caused by the corpus itself, which is safe to show the user, unlike a service error.
+export class DocumentError extends Error {}
 const fallbackPolicy = "CUNY Demo Policy: All student data must remain on secure, localized servers. Public LLM APIs are strictly prohibited for processing FERPA-protected information.";
 
 function sourceMetadata(directory: string, filename: string, section?: string) {
@@ -213,7 +216,7 @@ export async function loadFileChunks(directory: string, source: string): Promise
   try {
     documents = await loadFile(directory, filename);
   } catch (error) {
-    throw new Error(`Unable to extract text from ${source}: ${(error as Error).message}`);
+    throw new DocumentError(`Unable to extract text from ${source}: ${(error as Error).message}`);
   }
   const contentHash = await fileContentHash(directory, source);
   for (const document of documents) document.metadata.contentHash = contentHash;
@@ -226,7 +229,7 @@ export async function loadChunks(directory: string): Promise<Document[]> {
     chunks.push(...await loadFileChunks(directory, source));
   }
   if (!chunks.length) {
-    throw new Error(`Add a readable supported document to demo_docs (${Array.from(supportedExtensions).sort().join(", ")}), then try again.`);
+    throw new DocumentError(`Add a readable supported document to demo_docs (${Array.from(supportedExtensions).sort().join(", ")}), then try again.`);
   }
   return chunks;
 }

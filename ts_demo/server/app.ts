@@ -1,7 +1,13 @@
 import express, { type ErrorRequestHandler } from "express";
 import type { ChatResponse } from "../shared/types.js";
+import type { IndexJob } from "./indexJob.js";
 
-export function createApp(ask: (question: string) => Promise<ChatResponse>) {
+export interface AppDependencies {
+  ask: (question: string) => Promise<ChatResponse>;
+  index: IndexJob;
+}
+
+export function createApp({ ask, index }: AppDependencies) {
   const app = express();
   app.disable("x-powered-by");
   app.use("/api", (_req, res, next) => { res.setHeader("Cache-Control", "no-store"); next(); });
@@ -19,6 +25,14 @@ export function createApp(ask: (question: string) => Promise<ChatResponse>) {
       res.status(503).json({ error: "Unable to query local policies. Check that Ollama and Chroma are running, llama3.2 and nomic-embed-text are installed, and demo_docs contains readable supported files. Then try again." });
     }
   });
+  app.post("/api/index/sync", (_req, res) => {
+    if (!index.start()) {
+      res.status(409).json({ error: "Indexing is already running." });
+      return;
+    }
+    res.status(202).json(index.status());
+  });
+  app.get("/api/index/status", (_req, res) => { res.json(index.status()); });
   app.use("/api", (_req, res) => { res.status(404).json({ error: "Unknown API endpoint." }); });
   const handleError: ErrorRequestHandler = (error, _req, res, _next) => {
     const status = error.type === "entity.too.large" ? 413 : 400;

@@ -1,5 +1,8 @@
 import { IncludeEnum, type Collection } from "chromadb";
 import { fileContentHash, listSupportedFiles, loadFileChunks } from "./documents.js";
+import type { SyncSummary } from "../shared/types.js";
+
+export type { SyncSummary };
 
 export interface IndexDiff {
   added: string[];
@@ -11,11 +14,6 @@ export interface IndexDiff {
 export interface IndexedSource {
   contentHash: string;
   chunks: number;
-}
-
-export interface SyncSummary extends IndexDiff {
-  chunksAdded: number;
-  chunksRemoved: number;
 }
 
 interface Embedder {

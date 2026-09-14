@@ -12,8 +12,10 @@ process.env.LANGCHAIN_TRACING_V2 = "false";
 process.env.LANGCHAIN_TRACING = "false";
 process.env.LANGSMITH_TRACING = "false";
 const { createRag } = await import("./rag.js");
+const { createIndexJob } = await import("./indexJob.js");
 const rag = createRag();
-const app = createApp((question) => rag.ask(question));
+const index = createIndexJob((onProgress) => rag.sync(onProgress));
+const app = createApp({ ask: (question) => rag.ask(question), index });
 const production = import.meta.url.endsWith(".js");
 let vite: import("vite").ViteDevServer | undefined;
 if (production) {
@@ -34,6 +36,7 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
     timer.unref();
     server.close();
     await vite?.close();
+    await index.settled().catch(() => {});
     await rag.close().catch(() => {});
     process.exit(0);
   });
