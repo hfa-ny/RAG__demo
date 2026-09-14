@@ -2,12 +2,30 @@ import { ChromaClient, IncludeEnum, type Collection } from "chromadb";
 import { ChatOllama, OllamaEmbeddings } from "@langchain/ollama";
 import { docsDirectory } from "./paths.js";
 import { readIndexedSources, reconcile, type SyncSummary } from "./reconcile.js";
-import type { ChatResponse } from "../shared/types.js";
+import type { ChatResponse, RetrievalSettings, SourceDocument } from "../shared/types.js";
 
 export const SYSTEM_PROMPT = "You are a secure university assistant. Use the following context to answer the question. " +
   "If the answer is not in the context, explicitly state that you do not have that information.\n\n";
 
-export function createRag() {
+export const NO_CONTEXT_ANSWER = "I do not have that information in the indexed policy documents.";
+
+// Chroma reports cosine distance, so the closest possible match is 0 and similarity is its complement.
+export function selectContext(
+  documents: (string | null)[],
+  metadatas: (Record<string, unknown> | null)[],
+  distances: number[],
+  minSimilarity: number,
+): SourceDocument[] {
+  return documents.map((text, i) => ({
+    pageContent: text || "",
+    source: String(metadatas[i]?.source || ""),
+    format: String(metadatas[i]?.format || ""),
+    section: String(metadatas[i]?.section || ""),
+    similarity: 1 - Number(distances[i] ?? 1),
+  })).filter((doc) => doc.similarity >= minSimilarity);
+}
+
+export function createRag(getSettings: () => RetrievalSettings = () => ({ topK: 4, minSimilarity: 0 })) {
   const baseUrl = process.env.OLLAMA_BASE_URL || "http://127.0.0.1:11434";
   const chromaUrl = new URL(process.env.CHROMA_URL || "http://127.0.0.1:8000");
   const client = new ChromaClient({
@@ -58,17 +76,23 @@ export function createRag() {
       const active = await collection();
       const indexed = await active.count();
       if (!indexed) throw new Error("The index is empty. Add a supported document, then run a sync.");
+      const { topK, minSimilarity } = getSettings();
       const result = await active.query({
         queryEmbeddings: [await embeddings.embedQuery(question)],
-        nResults: Math.min(4, indexed),
-        include: [IncludeEnum.documents, IncludeEnum.metadatas],
+        nResults: Math.min(topK, indexed),
+        include: [IncludeEnum.documents, IncludeEnum.metadatas, IncludeEnum.distances],
       });
-      const context = (result.documents[0] || []).map((text, i) => ({
-        pageContent: text || "",
-        source: String(result.metadatas[0]?.[i]?.source || ""),
-        format: String(result.metadatas[0]?.[i]?.format || ""),
-        section: String(result.metadatas[0]?.[i]?.section || ""),
-      }));
+      const context = selectContext(
+        result.documents[0] || [],
+        (result.metadatas[0] || []) as (Record<string, unknown> | null)[],
+        (result.distances?.[0] || []) as number[],
+        minSimilarity,
+      );
+
+      // Similarity search always returns its nearest rows, even for a question the corpus cannot answer.
+      // When the cutoff rejects them all, say so directly rather than asking the model to work from nothing.
+      if (!context.length) return { answer: NO_CONTEXT_ANSWER, context };
+
       const response = await llm.invoke([
         ["system", SYSTEM_PROMPT + context.map((doc) => doc.pageContent).join("\n\n")],
         ["human", question],

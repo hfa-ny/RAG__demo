@@ -3,6 +3,15 @@ export interface SourceDocument {
   source: string;
   format?: string;
   section?: string;
+  /** Cosine similarity to the question, 1 being an exact direction match. */
+  similarity?: number;
+}
+
+export interface RetrievalSettings {
+  /** How many chunks similarity search returns before the cutoff is applied. */
+  topK: number;
+  /** Chunks below this similarity never reach the model. */
+  minSimilarity: number;
 }
 
 export interface ChatResponse {

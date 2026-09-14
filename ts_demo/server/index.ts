@@ -14,10 +14,12 @@ process.env.LANGSMITH_TRACING = "false";
 const { createRag } = await import("./rag.js");
 const { createIndexJob } = await import("./indexJob.js");
 const { createCorpus } = await import("./corpus.js");
-const rag = createRag();
+const { createSettings } = await import("./settings.js");
+const settings = createSettings();
+const rag = createRag(settings.get);
 const index = createIndexJob((onProgress) => rag.sync(onProgress));
 const corpus = createCorpus(docsDirectory, () => rag.documents());
-const app = createApp({ ask: (question) => rag.ask(question), index, corpus });
+const app = createApp({ ask: (question) => rag.ask(question), index, corpus, settings });
 const production = import.meta.url.endsWith(".js");
 let vite: import("vite").ViteDevServer | undefined;
 if (production) {

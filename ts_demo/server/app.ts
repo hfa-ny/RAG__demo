@@ -1,5 +1,5 @@
 import express, { type ErrorRequestHandler, type Response } from "express";
-import type { ChatResponse } from "../shared/types.js";
+import type { ChatResponse, RetrievalSettings } from "../shared/types.js";
 import type { IndexJob } from "./indexJob.js";
 import type { Corpus } from "./corpus.js";
 import { DocumentError } from "./documents.js";
@@ -8,6 +8,7 @@ export interface AppDependencies {
   ask: (question: string) => Promise<ChatResponse>;
   index: IndexJob;
   corpus: Corpus;
+  settings: { get(): RetrievalSettings; update(patch: unknown): RetrievalSettings };
 }
 
 // Corpus problems describe themselves; anything else stays generic so service details do not leak.
@@ -16,7 +17,7 @@ function fail(res: Response, error: unknown) {
   else res.status(503).json({ error: "Unable to update the corpus. Check that the demo_docs folder is writable." });
 }
 
-export function createApp({ ask, index, corpus }: AppDependencies) {
+export function createApp({ ask, index, corpus, settings }: AppDependencies) {
   const app = express();
   app.disable("x-powered-by");
   app.use("/api", (_req, res, next) => { res.setHeader("Cache-Control", "no-store"); next(); });
@@ -32,6 +33,15 @@ export function createApp({ ask, index, corpus }: AppDependencies) {
       res.json(await ask(question.trim()));
     } catch {
       res.status(503).json({ error: "Unable to query local policies. Check that Ollama and Chroma are running, llama3.2 and nomic-embed-text are installed, and demo_docs contains readable supported files. Then try again." });
+    }
+  });
+  app.get("/api/settings", (_req, res) => { res.json(settings.get()); });
+  app.put("/api/settings", (req, res) => {
+    try {
+      res.json(settings.update(req.body));
+    } catch (error) {
+      // Only our own bounds checks throw here, so the message is safe to return.
+      res.status(400).json({ error: (error as Error).message });
     }
   });
   app.get("/api/documents", async (_req, res) => {

@@ -5,10 +5,12 @@ import { mkdtemp, readFile, readdir, rm } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
 import { createApp } from "../server/app.js";
+import { selectContext } from "../server/rag.js";
 import { createIndexJob } from "../server/indexJob.js";
 import type { IndexJob } from "../server/indexJob.js";
 import { DocumentError } from "../server/documents.js";
 import { createCorpus, type Corpus } from "../server/corpus.js";
+import { createSettings, validateSettings } from "../server/settings.js";
 import type { TestContext } from "node:test";
 
 const stubCorpus = (): Corpus => ({
@@ -35,6 +37,7 @@ test("chat API validates input, returns sources, and handles an unavailable mode
   const app = createApp({
     index: idleJob(),
     corpus: stubCorpus(),
+    settings: createSettings(),
     ask: async (question) => {
       questions.push(question);
       if (question === "offline") throw new Error("sensitive internal details");
@@ -76,7 +79,7 @@ test("index endpoints run one sync at a time and report progress", async (t) => 
     return { added: ["a.txt", "b.txt"], changed: [], removed: [], unchanged: [], chunksAdded: 5, chunksRemoved: 0 };
   });
   const base = await startServer(createApp({
-    index, corpus: stubCorpus(), ask: async () => ({ answer: "", context: [] }),
+    index, corpus: stubCorpus(), settings: createSettings(), ask: async () => ({ answer: "", context: [] }),
   }), t);
 
   assert.equal((await fetch(`${base}/api/index/status`)).status, 200);
@@ -123,7 +126,7 @@ test("document API uploads, lists and deletes without escaping the corpus folder
   const indexed = new Map([["ghost.txt", { contentHash: "h", chunks: 3 }]]);
   const corpus = createCorpus(directory, async () => indexed);
   const base = await startServer(createApp({
-    corpus, index: idleJob(), ask: async () => ({ answer: "", context: [] }),
+    corpus, index: idleJob(), settings: createSettings(), ask: async () => ({ answer: "", context: [] }),
   }), t);
 
   const upload = (name: string, body: string) => fetch(`${base}/api/documents?name=${encodeURIComponent(name)}`, {
@@ -153,4 +156,51 @@ test("document API uploads, lists and deletes without escaping the corpus folder
   assert.equal((await fetch(`${base}/api/documents?source=absent.txt`, { method: "DELETE" })).status, 400);
   assert.equal((await fetch(`${base}/api/documents?source=policy.txt`, { method: "DELETE" })).status, 200);
   assert.deepEqual(await readdir(directory), []);
+});
+
+test("retrieval settings accept values in range and reject the rest", async (t) => {
+  const settings = createSettings();
+  const base = await startServer(createApp({
+    settings, index: idleJob(), corpus: stubCorpus(), ask: async () => ({ answer: "", context: [] }),
+  }), t);
+
+  assert.deepEqual(await (await fetch(`${base}/api/settings`)).json(), { topK: 4, minSimilarity: 0 });
+
+  const put = (body: unknown) => fetch(`${base}/api/settings`, {
+    method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+  });
+
+  const updated = await put({ topK: 8, minSimilarity: 0.35 });
+  assert.equal(updated.status, 200);
+  assert.deepEqual(await updated.json(), { topK: 8, minSimilarity: 0.35 });
+  assert.deepEqual(settings.get(), { topK: 8, minSimilarity: 0.35 });
+
+  for (const invalid of [{ topK: 0 }, { topK: 21 }, { topK: 2.5 }, { topK: "many" }, { minSimilarity: -0.1 }, { minSimilarity: 1.5 }]) {
+    assert.equal((await put(invalid)).status, 400, `expected ${JSON.stringify(invalid)} to be rejected`);
+  }
+  // A rejected change must leave the previous settings in place.
+  assert.deepEqual(settings.get(), { topK: 8, minSimilarity: 0.35 });
+
+  // A patch touches only the field it names.
+  assert.deepEqual(await (await put({ topK: 2 })).json(), { topK: 2, minSimilarity: 0.35 });
+});
+
+test("the similarity cutoff drops weak matches before they reach the model", () => {
+  const documents = ["Closely related policy.", "Loosely related text.", "Unrelated text."];
+  const metadatas = [{ source: "a.txt" }, { source: "b.txt" }, { source: "c.txt" }];
+  const distances = [0.1, 0.5, 0.95];
+
+  const all = selectContext(documents, metadatas, distances, 0);
+  assert.deepEqual(all.map((doc) => doc.source), ["a.txt", "b.txt", "c.txt"]);
+  assert.ok(Math.abs((all[0].similarity ?? 0) - 0.9) < 1e-9);
+
+  assert.deepEqual(selectContext(documents, metadatas, distances, 0.5).map((doc) => doc.source), ["a.txt", "b.txt"]);
+
+  // Everything rejected is the out-of-corpus case that must never reach the model.
+  assert.deepEqual(selectContext(documents, metadatas, distances, 0.95), []);
+});
+
+test("validateSettings keeps unrelated fields and refuses a non-object patch", () => {
+  assert.deepEqual(validateSettings({ topK: 7 }, { topK: 4, minSimilarity: 0.2 }), { topK: 7, minSimilarity: 0.2 });
+  assert.throws(() => validateSettings(null, { topK: 4, minSimilarity: 0 }), /JSON object/);
 });
