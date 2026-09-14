@@ -1,6 +1,7 @@
 import { marked } from "marked";
 import DOMPurify from "dompurify";
 import type { ChatResponse } from "../shared/types.js";
+import "./console.js";
 import "./style.css";
 
 const form = document.querySelector<HTMLFormElement>("#question-form")!;
@@ -60,12 +61,20 @@ form.addEventListener("submit", async (event) => {
     const summary = document.createElement("summary");
     summary.textContent = "View Retrieved Source Documents";
     sources.append(summary);
+    if (!data.context.length) {
+      const empty = document.createElement("div");
+      empty.className = "source";
+      empty.textContent = "No passage met the similarity cutoff, so the model was not asked to answer.";
+      sources.append(empty);
+    }
     for (const doc of data.context) {
       const source = document.createElement("div");
       source.className = "source";
       const sourceMeta = document.createElement("div");
       sourceMeta.className = "source-meta";
-      sourceMeta.textContent = [doc.source, doc.section].filter(Boolean).join(" - ");
+      const label = [doc.source, doc.section].filter(Boolean).join(" - ");
+      const score = typeof doc.similarity === "number" ? `similarity ${doc.similarity.toFixed(2)}` : "";
+      sourceMeta.textContent = [label, score].filter(Boolean).join(" · ");
       if (sourceMeta.textContent) source.append(sourceMeta);
       const sourceText = document.createElement("div");
       sourceText.className = "source-text";

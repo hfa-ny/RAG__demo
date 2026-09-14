@@ -35,3 +35,27 @@ button:disabled { opacity: .4; cursor: wait; }
 @keyframes spin { to { transform: rotate(360deg); } }
 @media (max-width: 600px) { main { padding-top: 48px; } h1 { font-size: 2rem; } .message { padding: 12px 4px; gap: 10px; } }
 @media (prefers-reduced-motion: reduce) { #status::before { animation: none; } }
+
+#console { margin: 0 0 24px; }
+.console-body { display: grid; gap: 24px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); padding: 0 16px 16px; }
+.panel h2 { font-size: 1rem; margin: 0 0 12px; letter-spacing: -.01em; }
+.panel label { display: block; font-size: 13px; margin: 14px 0 6px; }
+.panel output { font-weight: 700; }
+.panel button { font: inherit; font-size: 13px; padding: 8px 14px; border: 1px solid #d6d6d8; border-radius: 6px; background: #fff; color: #31333f; }
+.panel button:hover:not(:disabled) { border-color: #ff4b4b; color: #ff4b4b; }
+.panel button:disabled { opacity: .5; cursor: not-allowed; }
+.panel input[type="range"] { display: block; width: 100%; flex: none; padding: 0; accent-color: #ff4b4b; }
+.panel-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.file-button { position: relative; display: inline-flex; }
+.file-button input { position: absolute; width: 1px; height: 1px; padding: 0; opacity: 0; }
+.file-button span { font-size: 13px; padding: 8px 14px; border: 1px solid #d6d6d8; border-radius: 6px; background: #fff; cursor: pointer; }
+.file-button:focus-within span { outline: 2px solid #ff4b4b; outline-offset: 2px; }
+#documents { list-style: none; margin: 0 0 12px; padding: 0; display: grid; gap: 6px; }
+#documents li { display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: #f0f2f6; border-radius: 6px; font-size: 13px; }
+#documents li.empty { color: #5b5e6b; }
+.doc-name { flex: 1; min-width: 0; overflow-wrap: anywhere; font-weight: 600; }
+.doc-state { color: #5b5e6b; font-size: 12px; }
+.panel .doc-remove { padding: 4px 10px; font-size: 12px; color: #8b2424; }
+#index-state { font-size: 12px; color: #5b5e6b; margin: 0 0 12px; min-height: 1.2em; }
+.hint { font-size: 12px; color: #5b5e6b; line-height: 1.5; margin: 14px 0 0; }
+#corpus-error { background: #ffecec; color: #8b2424; padding: 10px 12px; border-radius: 6px; font-size: 13px; margin: 12px 0 0; }

@@ -3,7 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import express from "express";
 import { createApp } from "./app.js";
-import { appRoot } from "./paths.js";
+import { appRoot, docsDirectory } from "./paths.js";
 
 config({ path: path.join(appRoot, ".env"), quiet: true });
 
@@ -12,8 +12,14 @@ process.env.LANGCHAIN_TRACING_V2 = "false";
 process.env.LANGCHAIN_TRACING = "false";
 process.env.LANGSMITH_TRACING = "false";
 const { createRag } = await import("./rag.js");
-const rag = createRag();
-const app = createApp((question) => rag.ask(question));
+const { createIndexJob } = await import("./indexJob.js");
+const { createCorpus } = await import("./corpus.js");
+const { createSettings } = await import("./settings.js");
+const settings = createSettings();
+const rag = createRag(settings.get);
+const index = createIndexJob((onProgress) => rag.sync(onProgress));
+const corpus = createCorpus(docsDirectory, () => rag.documents());
+const app = createApp({ ask: (question) => rag.ask(question), index, corpus, settings });
 const production = import.meta.url.endsWith(".js");
 let vite: import("vite").ViteDevServer | undefined;
 if (production) {
@@ -34,6 +40,7 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
     timer.unref();
     server.close();
     await vite?.close();
+    await index.settled().catch(() => {});
     await rag.close().catch(() => {});
     process.exit(0);
   });

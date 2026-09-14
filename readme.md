@@ -117,8 +117,12 @@ flowchart LR
 
 The app embeds the question, retrieves the closest chunks, and combines their
 text with the question and the assistant instructions. Retrieval returns up to
-four chunks, which can include multiple passages from the same policy.
+four chunks by default, which can include multiple passages from the same policy.
 The source panel displays these retrieved passages alongside the model's answer.
+
+In the TypeScript app the number of chunks is adjustable, and a similarity cutoff
+can drop weak matches before the prompt is built. It also shows each passage's
+similarity score, so a demonstration can show why a passage was or was not used.
 
 Both implementations use the original system prompt:
 
@@ -210,9 +214,11 @@ docker compose up --build
 ```
 
 Open **http://localhost:8501** for Python and **http://localhost:8502** for
-TypeScript. The Compose file mounts `./demo_docs` read-only into both app
-containers, so document edits are picked up after restarting the relevant app
-container. Stop everything with **Ctrl+C**, or run:
+TypeScript. The Compose file mounts `./demo_docs` writable into the TypeScript
+container so its upload panel can save files, and read-only into the Python
+container, which only reads the corpus. Python picks up document edits after its
+container restarts; TypeScript picks them up on the next sync. Stop everything
+with **Ctrl+C**, or run:
 
 ```bash
 docker compose down
@@ -285,10 +291,14 @@ refer to these files, not an independently verified statement of university poli
 | [Faculty hardware procurement](demo_docs/faculty_hardware_procurement.txt) | Equipment budgets, refresh deadlines, departmental exceptions, peripherals |
 
 To add knowledge, place supported local document files in `demo_docs/` or its
-subfolders, then restart each app that should pick up the changes. Both apps
-resolve this directory relative to their application files, so the shell's working
-directory does not change the selected corpus. There is no upload UI or automatic
-document watcher.
+subfolders. Both apps resolve this directory relative to their application files,
+so the shell's working directory does not change the selected corpus.
+
+The TypeScript app can also add and remove documents while running: open
+**Corpus and retrieval settings** above the chat box, upload a file, and it
+indexes what changed without a restart. The Python app has no upload UI and still
+needs a restart to pick up edits. Neither app watches the folder for changes made
+outside it, so a file copied in by hand is indexed on the next sync or restart.
 
 | Format | Support level |
 | --- | --- |
@@ -311,16 +321,22 @@ supported document before querying it.
 | Lifecycle | Python | TypeScript |
 | --- | --- | --- |
 | First indexing | Initial Streamlit script execution | First question |
-| Reuse | Streamlit resource cache | Promise and collection cached in the Node process |
-| Storage | Embedded, without a configured persistence directory | Separate Chroma service; unique collection per Node process |
-| Normal shutdown | Process-local store is not configured for reuse | App attempts to delete its collection |
-| Refresh | Restart Streamlit | Restart Node; next question rebuilds |
+| Reuse | Streamlit resource cache | Named collection in the Chroma service |
+| Storage | Embedded, without a configured persistence directory | Separate Chroma service; persistent collection in the `chroma-data` volume |
+| Normal shutdown | Process-local store is not configured for reuse | Index is kept |
+| Refresh | Restart Streamlit; rebuilds everything | Upload, delete, or **Sync index**; only changed files are re-embedded |
 
-A forced Node termination can leave a collection in Chroma. From `ts_demo/`,
-`docker compose stop chroma` stops the database without removing the container;
-`docker compose down` removes the supplied disposable database container and its
-stored collections. The Compose project name remains `demo` so it manages the
-same service after the folder reorganization.
+The TypeScript index survives restarts, so it is compared against the folder
+rather than rebuilt. Each sync hashes the files on disk, checks them against the
+hashes stored alongside the chunks, and then embeds only added and changed files
+while dropping the chunks of changed and deleted ones. A corpus that has not
+changed costs a hash pass and no embedding at all.
+
+From `ts_demo/`, `docker compose stop chroma` stops the database without removing
+the container; `docker compose down` removes the container but keeps the
+`chroma-data` volume, so the index is still there on the next start. Add `-v` to
+discard the stored vectors as well. The Compose project name remains `demo` so it
+manages the same service after the folder reorganization.
 
 ## Configuration
 
@@ -335,6 +351,9 @@ the values; shell environment variables take precedence. Restart after changes.
 | `CHROMA_URL` | `http://127.0.0.1:8000` | Chroma service |
 | `CHAT_MODEL` | `llama3.2` | Answer-generation model |
 | `EMBEDDING_MODEL` | `nomic-embed-text` | Document and question embeddings |
+| `CHROMA_COLLECTION` | `campus-policies` | Persistent collection holding the index |
+| `TOP_K` | `4` | Passages retrieved per question; adjustable in the retrieval panel |
+| `MIN_SIMILARITY` | `0` | Minimum similarity a passage needs to reach the model |
 
 The Python version sets model names in [py_demo/app.py](py_demo/app.py). It uses
 the Ollama integration's local default unless `OLLAMA_BASE_URL` is set, which the
@@ -342,10 +361,19 @@ Docker Compose workflow uses to reach host Ollama. It does not read the TypeScri
 `.env`. Its web port can be overridden with Streamlit's `--server.port` launch
 argument.
 
-For a fair comparison, use the same models and corpus in both apps. Chunk size,
-overlap, and retrieval count are defined in code, not the TypeScript `.env`.
-Changing the embedding model requires rebuilding the index; query vectors must
-use the same embedding model as the stored documents.
+For a fair comparison, use the same models and corpus in both apps. Note that the
+TypeScript app defaults to `TOP_K=4` and no cutoff, matching the Python app; raising
+the cutoff in the retrieval panel will make the two behave differently.
+
+`TOP_K` and `MIN_SIMILARITY` set the starting values for the retrieval panel, and
+changes made there last until the process restarts. Both apply per question and
+never touch the stored vectors.
+
+Chunk size and overlap are defined in code, not the `.env`. They and the embedding
+model are deliberately not adjustable at runtime: changing any of them invalidates
+every stored vector, because chunk boundaries shift across the whole corpus and
+query vectors must come from the same embedding model as the stored documents.
+Changing them means re-embedding everything.
 
 ## Conference demo walkthrough
 
@@ -389,6 +417,14 @@ The expected behavior is to say the information is unavailable. Similarity searc
 still returns nearby passages even when none answers the question; the model must
 recognize that the supplied context is insufficient. A successful refusal is one
 test result, not proof that the system can never invent an answer.
+
+This question is also the one to demonstrate the cutoff with. Ask it in the
+TypeScript app with **Minimum similarity** at 0, open the source panel, and note
+the similarity scores of the passages that were sent to the model anyway. Raise
+the cutoff above those scores and ask again: the passages are discarded, the
+model is never called, and the refusal comes from the retrieval step rather than
+from the model's judgement. Raising it too far will also reject good matches for
+the earlier questions, which is the tradeoff worth showing.
 
 ## Validation and troubleshooting
 
@@ -477,9 +513,20 @@ A specialized, efficient embedding model with an 8,192-token context window. Pro
 ## Scope and limitations
 
 This is a local RAG demonstration with a small text corpus. It has no user login,
-per-document permissions, durable conversation history, reranking, or similarity
-threshold that rejects unrelated results before generation. The original prompt
-asks the model to stay within the context but does not enforce that behavior.
+per-document permissions, durable conversation history, or reranking.
+
+The TypeScript app can reject unrelated results before generation with the
+`MIN_SIMILARITY` cutoff, and when nothing clears it the chat model is not called
+at all. That cutoff is off by default and is a blunt instrument: it is one number
+against a similarity score, not a judgement about whether the passages actually
+answer the question. The Python app has no cutoff, so there the prompt alone asks
+the model to stay within the context without enforcing it.
+
+Uploading is unauthenticated, as is everything else here. Anyone who can reach
+the port can add or delete documents in the corpus, which is why the app binds to
+loopback by default. The upload path accepts a plain file name with a supported
+extension and refuses anything that would write outside `demo_docs/`, but it does
+not scan file contents.
 
 The TypeScript server and supplied Chroma port bind to loopback. TypeScript also
 disables LangChain tracing, and the Compose service disables anonymized telemetry.

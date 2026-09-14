@@ -8,6 +8,35 @@
   <body>
     <main>
       <h1>🏛️ Secure Campus AI</h1>
+      <details id="console">
+        <summary>Corpus and retrieval settings</summary>
+        <div class="console-body">
+          <section class="panel" aria-labelledby="corpus-heading">
+            <h2 id="corpus-heading">Corpus</h2>
+            <ul id="documents" aria-label="Documents"></ul>
+            <p id="index-state" role="status"></p>
+            <div class="panel-actions">
+              <label class="file-button">
+                <input type="file" id="upload" accept=".txt,.md,.html,.htm,.pdf,.docx,.csv,.xlsx,.pptx" />
+                <span>Add document</span>
+              </label>
+              <button type="button" id="sync">Sync index</button>
+            </div>
+            <p id="corpus-error" role="alert" hidden></p>
+          </section>
+          <section class="panel" aria-labelledby="retrieval-heading">
+            <h2 id="retrieval-heading">Retrieval</h2>
+            <label for="top-k">Passages retrieved <output id="top-k-value"></output></label>
+            <input type="range" id="top-k" min="1" max="20" step="1" />
+            <label for="min-similarity">Minimum similarity <output id="min-similarity-value"></output></label>
+            <input type="range" id="min-similarity" min="0" max="1" step="0.05" />
+            <p class="hint">
+              Passages below the cutoff never reach the model. When none qualify, the answer says so
+              without the model being called at all. Neither setting re-indexes anything.
+            </p>
+          </section>
+        </div>
+      </details>
       <section id="chat" aria-label="Chat" aria-live="polite"></section>
       <p id="status" role="status" hidden>Querying local vector database...</p>
       <p id="error" role="alert" hidden></p>
