@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { Document } from "@langchain/core/documents";
@@ -172,7 +173,9 @@ async function loadFile(directory: string, filename: string): Promise<Document[]
   }
 }
 
-export async function loadChunks(directory: string): Promise<Document[]> {
+const splitter = new RecursiveCharacterTextSplitter({ chunkSize: 500, chunkOverlap: 50 });
+
+async function ensureDirectory(directory: string) {
   try {
     await readdir(directory);
   } catch (error) {
@@ -180,25 +183,48 @@ export async function loadChunks(directory: string): Promise<Document[]> {
     await mkdir(directory, { recursive: true });
     await writeFile(path.join(directory, "sample_policy.txt"), fallbackPolicy, { flag: "wx" });
   }
+}
 
-  const documents: Document[] = [];
+// Identifies a file by content rather than name or timestamp, so an edited upload is detected as changed.
+export async function fileContentHash(directory: string, source: string): Promise<string> {
+  return createHash("sha256").update(await readFile(path.join(directory, source))).digest("hex");
+}
+
+export async function listSupportedFiles(directory: string): Promise<string[]> {
+  await ensureDirectory(directory);
+  const sources: string[] = [];
   async function walk(folder: string): Promise<void> {
     const entries = await readdir(folder, { withFileTypes: true });
     for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
       const filename = path.join(folder, entry.name);
       if (entry.isDirectory()) await walk(filename);
       else if (entry.isFile() && supportedExtensions.has(path.extname(entry.name).toLowerCase())) {
-        try {
-          documents.push(...await loadFile(directory, filename));
-        } catch (error) {
-          throw new Error(`Unable to extract text from ${path.relative(directory, filename)}: ${(error as Error).message}`);
-        }
+        sources.push(path.relative(directory, filename));
       }
     }
   }
   await walk(directory);
-  const splitter = new RecursiveCharacterTextSplitter({ chunkSize: 500, chunkOverlap: 50 });
-  const chunks = await splitter.splitDocuments(documents);
+  return sources;
+}
+
+export async function loadFileChunks(directory: string, source: string): Promise<Document[]> {
+  const filename = path.join(directory, source);
+  let documents: Document[];
+  try {
+    documents = await loadFile(directory, filename);
+  } catch (error) {
+    throw new Error(`Unable to extract text from ${source}: ${(error as Error).message}`);
+  }
+  const contentHash = await fileContentHash(directory, source);
+  for (const document of documents) document.metadata.contentHash = contentHash;
+  return splitter.splitDocuments(documents);
+}
+
+export async function loadChunks(directory: string): Promise<Document[]> {
+  const chunks: Document[] = [];
+  for (const source of await listSupportedFiles(directory)) {
+    chunks.push(...await loadFileChunks(directory, source));
+  }
   if (!chunks.length) {
     throw new Error(`Add a readable supported document to demo_docs (${Array.from(supportedExtensions).sort().join(", ")}), then try again.`);
   }

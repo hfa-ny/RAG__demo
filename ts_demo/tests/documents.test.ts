@@ -4,7 +4,7 @@ import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
 import JSZip from "jszip";
-import { loadChunks } from "../server/documents.js";
+import { loadChunks, listSupportedFiles, loadFileChunks, fileContentHash } from "../server/documents.js";
 
 async function writeXlsx(filename: string) {
   const zip = new JSZip();
@@ -86,6 +86,27 @@ test("loads html, csv, xlsx, and pptx files with section metadata", async (t) =>
   assert.ok(chunks.some((chunk) => chunk.metadata.source === "policy.csv" && chunk.metadata.section === "rows 1-2"));
   assert.ok(chunks.some((chunk) => chunk.metadata.source === "policy.xlsx" && chunk.metadata.section === "Budgets rows 1-2"));
   assert.ok(chunks.some((chunk) => chunk.metadata.source === "policy.pptx" && chunk.metadata.section === "slide 1"));
+});
+
+test("lists and loads one file at a time, tagging chunks with a content hash", async (t) => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), "campus-perfile-"));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  await mkdir(path.join(directory, "nested"));
+  await writeFile(path.join(directory, "nested", "deep.txt"), "Nested policy text.");
+  await writeFile(path.join(directory, "policy.md"), "# Policy\n\nOriginal text.");
+  await writeFile(path.join(directory, "ignored.png"), "Do not index this.");
+
+  assert.deepEqual(await listSupportedFiles(directory), [path.join("nested", "deep.txt"), "policy.md"]);
+
+  const chunks = await loadFileChunks(directory, "policy.md");
+  assert.ok(chunks.length > 0);
+  assert.ok(chunks.every((chunk) => chunk.metadata.source === "policy.md"));
+  const hash = await fileContentHash(directory, "policy.md");
+  assert.ok(chunks.every((chunk) => chunk.metadata.contentHash === hash));
+
+  // A rewritten file must hash differently, or reconciliation would skip it as unchanged.
+  await writeFile(path.join(directory, "policy.md"), "# Policy\n\nRevised text.");
+  assert.notEqual(await fileContentHash(directory, "policy.md"), hash);
 });
 
 test("creates the fallback policy only for a missing directory and reports empty folders", async (t) => {
