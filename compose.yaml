@@ -37,3 +37,8 @@ services:
       - "127.0.0.1:8000:8000"
     environment:
       ANONYMIZED_TELEMETRY: "False"
+    volumes:
+      - chroma-data:/data
+
+volumes:
+  chroma-data:
