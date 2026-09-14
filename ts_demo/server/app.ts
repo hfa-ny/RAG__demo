@@ -14,7 +14,7 @@ export interface AppDependencies {
 // Corpus problems describe themselves; anything else stays generic so service details do not leak.
 function fail(res: Response, error: unknown) {
   if (error instanceof DocumentError) res.status(400).json({ error: error.message });
-  else res.status(503).json({ error: "Unable to update the corpus. Check that the demo_docs folder is writable." });
+  else res.status(503).json({ error: "Unable to read or update the corpus. Check that Chroma is running and that the demo_docs folder is writable." });
 }
 
 export function createApp({ ask, index, corpus, settings }: AppDependencies) {
