@@ -9,6 +9,7 @@ services:
     environment:
       OLLAMA_BASE_URL: "http://host.docker.internal:11434"
     volumes:
+      # The Python app only reads the corpus; uploads go through the TypeScript app.
       - ./demo_docs:/app/demo_docs:ro
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -25,7 +26,7 @@ services:
       OLLAMA_BASE_URL: "http://host.docker.internal:11434"
       CHROMA_URL: "http://chroma:8000"
     volumes:
-      - ./demo_docs:/app/demo_docs:ro
+      - ./demo_docs:/app/demo_docs
     depends_on:
       - chroma
     extra_hosts:

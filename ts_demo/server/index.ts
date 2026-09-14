@@ -3,7 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import express from "express";
 import { createApp } from "./app.js";
-import { appRoot } from "./paths.js";
+import { appRoot, docsDirectory } from "./paths.js";
 
 config({ path: path.join(appRoot, ".env"), quiet: true });
 
@@ -13,9 +13,11 @@ process.env.LANGCHAIN_TRACING = "false";
 process.env.LANGSMITH_TRACING = "false";
 const { createRag } = await import("./rag.js");
 const { createIndexJob } = await import("./indexJob.js");
+const { createCorpus } = await import("./corpus.js");
 const rag = createRag();
 const index = createIndexJob((onProgress) => rag.sync(onProgress));
-const app = createApp({ ask: (question) => rag.ask(question), index });
+const corpus = createCorpus(docsDirectory, () => rag.documents());
+const app = createApp({ ask: (question) => rag.ask(question), index, corpus });
 const production = import.meta.url.endsWith(".js");
 let vite: import("vite").ViteDevServer | undefined;
 if (production) {

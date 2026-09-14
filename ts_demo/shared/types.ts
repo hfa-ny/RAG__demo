@@ -10,6 +10,15 @@ export interface ChatResponse {
   context: SourceDocument[];
 }
 
+export interface DocumentSummary {
+  source: string;
+  format: string;
+  chunks: number;
+  indexed: boolean;
+  /** Still in the index but no longer on disk; the next sync removes it. */
+  missing: boolean;
+}
+
 export interface SyncSummary {
   added: string[];
   changed: string[];

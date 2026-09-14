@@ -1,13 +1,22 @@
-import express, { type ErrorRequestHandler } from "express";
+import express, { type ErrorRequestHandler, type Response } from "express";
 import type { ChatResponse } from "../shared/types.js";
 import type { IndexJob } from "./indexJob.js";
+import type { Corpus } from "./corpus.js";
+import { DocumentError } from "./documents.js";
 
 export interface AppDependencies {
   ask: (question: string) => Promise<ChatResponse>;
   index: IndexJob;
+  corpus: Corpus;
 }
 
-export function createApp({ ask, index }: AppDependencies) {
+// Corpus problems describe themselves; anything else stays generic so service details do not leak.
+function fail(res: Response, error: unknown) {
+  if (error instanceof DocumentError) res.status(400).json({ error: error.message });
+  else res.status(503).json({ error: "Unable to update the corpus. Check that the demo_docs folder is writable." });
+}
+
+export function createApp({ ask, index, corpus }: AppDependencies) {
   const app = express();
   app.disable("x-powered-by");
   app.use("/api", (_req, res, next) => { res.setHeader("Cache-Control", "no-store"); next(); });
@@ -24,6 +33,28 @@ export function createApp({ ask, index }: AppDependencies) {
     } catch {
       res.status(503).json({ error: "Unable to query local policies. Check that Ollama and Chroma are running, llama3.2 and nomic-embed-text are installed, and demo_docs contains readable supported files. Then try again." });
     }
+  });
+  app.get("/api/documents", async (_req, res) => {
+    try {
+      res.json({ documents: await corpus.list() });
+    } catch (error) { fail(res, error); }
+  });
+  app.post("/api/documents", express.raw({ type: "*/*", limit: "25mb" }), async (req, res) => {
+    if (!Buffer.isBuffer(req.body)) {
+      res.status(400).json({ error: "Send the file bytes with Content-Type: application/octet-stream." });
+      return;
+    }
+    try {
+      const source = await corpus.save(String(req.query.name || ""), req.body);
+      // Index the new file right away unless a run is already in flight, which the caller can see.
+      res.status(201).json({ source, syncing: index.start() });
+    } catch (error) { fail(res, error); }
+  });
+  app.delete("/api/documents", async (req, res) => {
+    try {
+      await corpus.remove(String(req.query.source || ""));
+      res.json({ syncing: index.start() });
+    } catch (error) { fail(res, error); }
   });
   app.post("/api/index/sync", (_req, res) => {
     if (!index.start()) {
