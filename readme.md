@@ -1,6 +1,5 @@
 # Secure Campus AI: Walled Garden RAG Demo
 
-**2026 CUNY IT Conference Demonstration Repository**
 
 A local university policy assistant with two independent implementations:
 **Python / Streamlit** and **TypeScript / Node**. Ask a question, receive an answer
@@ -494,3 +493,21 @@ ready for sensitive production records. Authentication, access controls, deploym
 networking, retention, and operational review are outside this repository's
 implemented scope. For the conference demonstration, use the bundled policy corpus
 and verify model claims against the visible source text.
+
+
+## Quick steps (Py)
+
+```bash
+# 1. Confirm Ollama is running and models are available
+ollama list
+
+# 2. Create the environment if it does not exist
+python -m venv py_demo\venv
+
+# 3. Install dependencies
+py_demo\venv\Scripts\python.exe -m pip install -r py_demo\requirements.txt
+
+# 4. Start the app
+py_demo\venv\Scripts\python.exe -m streamlit run py_demo\app.py
+
+```
